@@ -24,6 +24,10 @@ hs_err_pid*
 
 # Thumbnails
 ._*
+.metadata
+.zip
+nbproject
+build
 
 # Files that might appear on external disk
 .Spotlight-V100
