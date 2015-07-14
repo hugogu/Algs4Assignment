@@ -32,7 +32,7 @@ public class Solver {
     }
 
     public int moves() {
-        return solution.size();
+        return solution.size() - 1;
     }
 
     public Iterable<Board> solution() {

@@ -72,11 +72,6 @@ public class Board {
         visitBlocks(new ToStringVisitor(builder));
         return builder.toString();
     }
-    
-    @Override
-    public int hashCode() {
-        return blockInitializer.hashCode();
-    }
 
     @Override
     public boolean equals(final Object that) {
@@ -86,10 +81,10 @@ public class Board {
         if (this == that) {
             return true;
         }
-        if (this.hashCode() != that.hashCode())
-            return false;
         if (that instanceof Board) {
             final Board another = (Board) that;
+            if (this.blockInitializer.hashCode() != another.blockInitializer.hashCode())
+                return false;
             for (int row = 0; row < blocks.length; row++) {
                 for (int column = 0; column < blocks.length; column++) {
                     if (this.getValue(row, column) != another.getValue(row, column)) {
@@ -204,9 +199,7 @@ public class Board {
         @Override
         public void visit(final int row, final int column) {
             final int value = getValue(row, column);
-            hash ^= Integer.hashCode(value) ^ 
-                    Integer.hashCode(row) ^ 
-                    Integer.hashCode(column);
+            hash ^= value + (row << 10) + (column << 20);
             if (value == 0) {
                 blankRow = row;
                 blankColumn = column;
