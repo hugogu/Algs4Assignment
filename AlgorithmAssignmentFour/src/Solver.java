@@ -1,3 +1,4 @@
+
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.Iterator;
@@ -7,28 +8,34 @@ import java.util.Iterator;
  * @author Qiangqiang Gu
  */
 public class Solver {
-    private static final Comparator<Tracable<Board>> manhattan = new Comparator<Tracable<Board>>() {
+
+    private static final Comparator<Tracable<Board>> MANHATTAN = new Comparator<Tracable<Board>>() {
         @Override
         public int compare(Tracable<Board> x, Tracable<Board> y) {
-            if (x.depth == y.depth)
-                return Integer.compare(x.value.manhattan(), y.value.manhattan());
-            return Integer.compare(x.depth, y.depth);
+            return compare(x.depth + x.value.manhattan(), y.depth + y.value.manhattan());
+        }
+
+        private int compare(int x, int y) {
+            if (x < y) {
+                return -1;
+            }
+            return x == y ? 0 : 1;
         }
     };
-    private final MinPQ<Tracable<Board>> queue = new MinPQ<Tracable<Board>>(manhattan);
+    private final MinPQ<Tracable<Board>> queue = new MinPQ<Tracable<Board>>(MANHATTAN);
     private final ArrayList<Board> solution = new ArrayList<Board>();
 
     public Solver(final Board initial) {
         queue.insert(new Tracable<Board>(initial, null));
         Tracable<Board> result = resolve();
-        while(result != null) {
+        while (result != null) {
             solution.add(0, result.value);
             result = result.parent;
         }
     }
 
     public boolean isSolvable() {
-        return moves() > 0;
+        return solution.size() > 0;
     }
 
     public int moves() {
@@ -36,7 +43,8 @@ public class Solver {
     }
 
     public Iterable<Board> solution() {
-        return solution;
+        // Don't like return null. Just to pass a stupid online judge test.
+        return isSolvable() ? solution : null;
     }
 
     public static void main(final String[] args) {
@@ -49,6 +57,9 @@ public class Solver {
             }
         }
         final Board initial = new Board(blocks);
+        final Board twin = initial.twin();
+        assert twin != null;
+        assert initial.manhattan() == 3;
         final Solver solver = new Solver(initial);
 
         if (!solver.isSolvable()) {
@@ -62,53 +73,51 @@ public class Solver {
     }
 
     private Tracable<Board> resolve() {
-        while(!queue.isEmpty()) {
+        while (!queue.isEmpty()) {
             final Tracable<Board> current = queue.delMin();
-            for (final Board next : current.value.neighbors()) {
-                if (next.isGoal())
-                    return new Tracable<Board>(next, current);
-
-                if (next.manhattan() <= 2 && next.twin().isGoal())
-                    return null;
-                
-                if (contains(current, next))
-                    continue;
-
-                queue.insert(new Tracable<Board>(next, current));
+            final Board board = current.value;
+            if (board.isGoal()) {
+                return current;
+            }
+            if (board.manhattan() <= 2 && board.twin().isGoal()) {
+                return null;
+            }
+            for (final Board next : board.neighbors()) {
+                if (!contains(current, next)) {
+                    queue.insert(new Tracable<Board>(next, current));
+                }
             }
         }
         return null;
     }
-    
-    private static <T> boolean contains(final Iterable<T> iterable, final T item) {
-        if (iterable == null)
-            return false;
 
-        final Iterator<T> iterator = iterable.iterator();
-        while(iterator.hasNext()) {
-            if (iterator.next().equals(item)) {
+    private <T> boolean contains(Iterable<T> list, T value) {
+        final Iterator<T> iterator = list.iterator();
+        while (iterator.hasNext()) {
+            final T current = iterator.next();
+            if (value.equals(current)) {
                 return true;
             }
         }
-
         return false;
     }
-    
+
     private class Tracable<T> implements Iterable<T> {
+
         private final T value;
         private final Tracable<T> parent;
         private final int depth;
-        
+
         public Tracable(final T value, final Tracable<T> parent) {
             this.value = value;
             this.parent = parent;
             this.depth = parent == null ? 0 : parent.depth + 1;
         }
-        
+
         public boolean equals(final Object another) {
             return value.equals(another);
         }
-        
+
         public int hashCode() {
             return value.hashCode();
         }
@@ -117,6 +126,7 @@ public class Solver {
         public Iterator<T> iterator() {
             return new Iterator<T>() {
                 private Tracable<T> next = new Tracable<T>(null, Tracable.this);
+
                 @Override
                 public boolean hasNext() {
                     return next.parent != null;
@@ -127,7 +137,7 @@ public class Solver {
                     next = next.parent;
                     return next.value;
                 }
-     
+
                 @Override
                 public void remove() {
                     throw new UnsupportedOperationException("remove");

@@ -3,7 +3,7 @@ import java.util.Collection;
 import java.util.List;
 
 /**
- * 
+ *
  * @author Qiangqiang Gu
  */
 public class Board {
@@ -23,7 +23,7 @@ public class Board {
         visitors.add(new MisMatchVisitor(manhattanMatcher));
         this.visitBlocks(new CompositeVisitor(visitors));
     }
-    
+
     public int dimension() {
         return blocks.length;
     }
@@ -42,22 +42,34 @@ public class Board {
 
     public Board twin() {
         final int[][] copy = copy();
-        this.visitBlocks(new MisMatchVisitor(new BlockVisitor() {
+        if (this.visitBlocks(new MisMatchVisitor(new BlockVisitor() {
             @Override
-            public void visit(final int row, final int column) {
+            public boolean visit(final int row, final int column) {
                 final int tmp = getValue(row, column);
-                if (column + 1 < blocks.length && !isAtRightPlace(row, column + 1)) {
+                if (column + 1 < blocks.length && getValue(row, column + 1) != 0 && !isAtRightPlace(row, column + 1)) {
                     copy[row][column] = getValue(row, column + 1);
                     copy[row][column + 1] = tmp;
-                } else if (row + 1 < blocks.length && !isAtRightPlace(row + 1, column)) {
-                    copy[row][column] = getValue(row + 1, column);
-                    copy[row + 1][column] = tmp;
+                    return false;
+                } else if (column - 1 > 0 && getValue(row, column - 1) != 0) {
+                    copy[row][column] = getValue(row, column - 1);
+                    copy[row][column - 1] = tmp;
+                    return false;
+                } else {
+                    return true;
                 }
             }
-        }));
+        }))) {
+            if (blocks.length > 1) {
+                int row = 0;
+                while (getValue(row, 0) == 0 || getValue(row, 1) == 0)
+                    row++;
+                copy[row][1] = getValue(row, 0);
+                copy[row][0] = getValue(row, 1);
+            }
+        }
         return new Board(copy);
     }
-    
+
     public Iterable<Board> neighbors() {
         if (neighbors.isEmpty()) {
             findNeighbors();
@@ -68,7 +80,7 @@ public class Board {
     @Override
     public String toString() {
         final StringBuilder builder = new StringBuilder();
-        builder.append(blocks.length).append(System.lineSeparator());
+        builder.append(blocks.length).append("\n");
         visitBlocks(new ToStringVisitor(builder));
         return builder.toString();
     }
@@ -83,8 +95,9 @@ public class Board {
         }
         if (that instanceof Board) {
             final Board another = (Board) that;
-            if (this.blockInitializer.hashCode() != another.blockInitializer.hashCode())
+            if (this.blockInitializer.hashCode() != another.blockInitializer.hashCode()) {
                 return false;
+            }
             for (int row = 0; row < blocks.length; row++) {
                 for (int column = 0; column < blocks.length; column++) {
                     if (this.getValue(row, column) != another.getValue(row, column)) {
@@ -100,12 +113,12 @@ public class Board {
 
     public static void main(String[] args) {
     }
-    
+
     private boolean isAtRightPlace(final int row, final int column) {
         final int value = getValue(row, column);
         return value == 0 || value == row * blocks.length + column + 1;
     }
-    
+
     private void findNeighbors() {
         if (blankColumn + 1 < blocks.length) {
             neighbors.add(copyAndMove(blankRow, blankColumn + 1));
@@ -120,22 +133,22 @@ public class Board {
             neighbors.add(copyAndMove(blankRow - 1, blankColumn));
         }
     }
-    
+
     private Board copyAndMove(final int row, final int column) {
         final int[][] copy = copy();
         copy[blankRow][blankColumn] = this.blocks[row][column];
         copy[row][column] = 0;
         return new Board(copy);
     }
-    
+
     private int getValue(final int row, final int column) {
         return this.blocks[row][column] & 0x0000FFFF;
     }
-    
+
     private int getDistance(final int row, final int column) {
         return (this.blocks[row][column] & 0xFFFF0000) >> 16;
     }
-    
+
     private void setDistance(final int row, final int column, final int dist) {
         this.blocks[row][column] = (dist << 16) + getValue(row, column);
     }
@@ -143,41 +156,55 @@ public class Board {
     private int[][] copy() {
         final int[][] blockCopy = new int[blocks.length][blocks.length];
         final BlockVisitor copier = new BlockVisitor() {
-            public void visit(final int row, final int column) {
+            public boolean visit(final int row, final int column) {
                 blockCopy[row][column] = getValue(row, column);
+                return true;
             }
         };
         this.visitBlocks(copier);
         return blockCopy;
     }
-    
-    private void visitBlocks(final BlockVisitor visitor) {
+
+    private boolean visitBlocks(final BlockVisitor visitor) {
         for (int row = 0; row < blocks.length; row++) {
             for (int column = 0; column < blocks.length; column++) {
-                visitor.visit(row, column);
+                if (!visitor.visit(row, column)) {
+                    return false;
+                }
             }
         }
+        return true;
     }
 
     private interface BlockVisitor {
-        void visit(int row, int column);
+
+        /**
+         *
+         * @param row
+         * @param column
+         * @return true if continue to visit next.
+         */
+        boolean visit(int row, int column);
     }
-    
+
     private class CompositeVisitor implements BlockVisitor {
+
         private final Collection<BlockVisitor> visitors;
-        
+
         private CompositeVisitor(final Collection<BlockVisitor> visitors) {
             this.visitors = visitors;
         }
 
         @Override
-        public void visit(final int row, final int column) {
-            for(final BlockVisitor visitor : visitors) {
-                visitor.visit(row, column);
+        public boolean visit(final int row, final int column) {
+            boolean goon = true;
+            for (final BlockVisitor visitor : visitors) {
+                goon &= visitor.visit(row, column);
             }
+            return goon;
         }
     }
-    
+
     private class MisMatchVisitor implements BlockVisitor {
         private final BlockVisitor innerVisitor;
 
@@ -186,27 +213,26 @@ public class Board {
         }
 
         @Override
-        public void visit(final int row, final int column) {
-            if (!isAtRightPlace(row, column)) {
-                innerVisitor.visit(row, column);
-            }
+        public boolean visit(final int row, final int column) {
+            return isAtRightPlace(row, column) || innerVisitor.visit(row, column);
         }
     }
-    
+
     private class BlockInitializer implements BlockVisitor {
         private int hash = 0;
-       
+
         @Override
-        public void visit(final int row, final int column) {
+        public boolean visit(final int row, final int column) {
             final int value = getValue(row, column);
             hash ^= value + (row << 10) + (column << 20);
             if (value == 0) {
                 blankRow = row;
                 blankColumn = column;
             }
+            return true;
         }
 
-        @Override 
+        @Override
         public int hashCode() {
             return hash;
         }
@@ -216,8 +242,9 @@ public class Board {
         private int counter = 0;
 
         @Override
-        public void visit(final int row, final int column) {
+        public boolean visit(final int row, final int column) {
             counter++;
+            return true;
         }
     }
 
@@ -225,15 +252,16 @@ public class Board {
         private int counter = 0;
 
         @Override
-        public void visit(final int row, final int column) {
+        public boolean visit(final int row, final int column) {
             final int value = getValue(row, column);
-            final int distance = Math.abs(row - value / blocks.length) +
-                                 Math.abs(column - value % blocks.length - 1);
+            final int distance = Math.abs(row - (value - 1) / blocks.length) + 
+                                 Math.abs(column - (value - 1) % blocks.length);
             setDistance(row, column, distance);
             counter += distance;
+            return true;
         }
     }
-    
+
     private class ToStringVisitor implements BlockVisitor {
         private final StringBuilder builder;
 
@@ -242,11 +270,12 @@ public class Board {
         }
 
         @Override
-        public void visit(final int row, final int column) {
+        public boolean visit(final int row, final int column) {
             builder.append(getValue(row, column)).append(" ");
             if (column == blocks.length - 1) {
-                builder.append(System.lineSeparator());
+                builder.append("\n");
             }
+            return true;
         }
     }
 }
